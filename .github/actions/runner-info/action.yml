@@ -1,0 +1,58 @@
+name: runner-info
+description: print the runner environment and add it to the job summary
+
+inputs:
+  label:
+    description: runner label to show in the summary heading
+    default: ""
+  tools:
+    description: space separated commands whose --version output should be recorded
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+        RUNNER_LABEL: ${{ inputs.label }}
+      run: |
+        {
+          echo "### runner: ${RUNNER_LABEL:-unknown}"
+          echo
+          echo '```'
+          echo "runner.name    : $RUNNER_NAME"
+          echo "runner.os      : $RUNNER_OS"
+          echo "runner.arch    : $RUNNER_ARCH"
+          echo "runner.env     : ${RUNNER_ENVIRONMENT:-unknown}"
+          echo "uname          : $(uname -a 2>/dev/null || echo n/a)"
+          case "$RUNNER_OS" in
+            Linux)
+              echo "cpus           : $(nproc 2>/dev/null || echo n/a)"
+              echo "memory         : $(awk '/MemTotal/ {printf "%.1f GiB", $2/1048576}' /proc/meminfo 2>/dev/null)"
+              echo "os-release     : $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")"
+              ;;
+            macOS)
+              echo "cpus           : $(sysctl -n hw.ncpu 2>/dev/null || echo n/a)"
+              echo "memory         : $(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.1f GiB", $1/1073741824}')"
+              echo "sw_vers        : $(sw_vers -productName 2>/dev/null) $(sw_vers -productVersion 2>/dev/null) ($(sw_vers -buildVersion 2>/dev/null))"
+              ;;
+            Windows)
+              echo "cpus           : ${NUMBER_OF_PROCESSORS:-n/a}"
+              echo "processor      : ${PROCESSOR_ARCHITECTURE:-n/a} / ${PROCESSOR_IDENTIFIER:-n/a}"
+              echo "os             : $(cmd //c ver 2>/dev/null | tr -d '\r' | grep -v '^$')"
+              ;;
+          esac
+          echo "disk (workdir) : $(df -h . 2>/dev/null | awk 'NR==2 {print $4 " free of " $2}')"
+          echo "shell          : $BASH_VERSION"
+          echo "git            : $(git --version 2>/dev/null || echo missing)"
+          for tool in $TOOLS; do
+            printf '%-14s : ' "$tool"
+            if command -v "$tool" >/dev/null 2>&1; then
+              ("$tool" --version 2>&1 || "$tool" version 2>&1) | head -n 1
+            else
+              echo "missing"
+            fi
+          done
+          echo '```'
+        } | tee -a "$GITHUB_STEP_SUMMARY"

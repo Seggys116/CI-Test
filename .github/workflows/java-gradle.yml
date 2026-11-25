@@ -1,0 +1,99 @@
+name: java-gradle
+run-name: java-gradle (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }} / jdk ${{ matrix.java }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/java-gradle
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+        java:
+          - 17
+          - 21
+          - 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "java"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: ${{ matrix.java }}
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: build and test
+        run: ./gradlew --no-daemon build
+
+      - name: runnable jar
+        run: ./gradlew --no-daemon jar installDist
+
+      - name: cli smoke (jar)
+        run: bash ../../scripts/cli-smoke.sh java -jar build/libs/ciutil.jar
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-gradle-cli-${{ matrix.target.runner }}-jdk${{ matrix.java }}
+          path: projects/java-gradle/build/libs
+          if-no-files-found: error
+          retention-days: 3

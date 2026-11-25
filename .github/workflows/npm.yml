@@ -1,0 +1,107 @@
+name: npm
+run-name: npm (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }} / node ${{ matrix.node }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/npm
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+        node:
+          - 22
+          - 24
+          - 26
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "node npm"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: projects/npm/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: format
+        run: npm run format:check
+
+      - name: test
+        run: npm test
+
+      - name: build
+        run: npm run build
+
+      - name: cli smoke
+        run: bash ../../scripts/cli-smoke.sh node dist/bin.js
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-cli-${{ matrix.target.runner }}-node${{ matrix.node }}
+          path: projects/npm/dist
+          if-no-files-found: error
+          retention-days: 3

@@ -1,0 +1,73 @@
+name: runner-info
+run-name: runner-info (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+
+  info:
+    name: ${{ matrix.target.runner }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: >-
+            cc c++ gcc g++ clang clang++ make cmake ninja meson cargo rustc go zig swift
+            java gradle dotnet node npm pnpm bun deno python3 python pip uv curl jq tar unzip
+
+      - name: network and filesystem sanity
+        shell: bash
+        run: |
+          set -e
+          tmp=$(mktemp -d)
+          echo "ci-test" > "$tmp/probe.txt"
+          test "$(cat "$tmp/probe.txt")" = "ci-test"
+          curl --fail --silent --show-error --location --output /dev/null --max-time 30 https://github.com
+          curl --fail --silent --show-error --location --output /dev/null --max-time 30 https://registry.npmjs.org/
+          curl --fail --silent --show-error --location --output /dev/null --max-time 30 https://static.crates.io/
+          echo "github, npm and crates.io reachable"
+          rm -rf "$tmp"

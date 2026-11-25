@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/CiUtil/CiUtil.csproj" />
+  <Project Path="src/CiUtil.Cli/CiUtil.Cli.csproj" />
+  <Project Path="tests/CiUtil.Tests/CiUtil.Tests.csproj" />
+</Solution>

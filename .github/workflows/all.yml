@@ -1,0 +1,142 @@
+name: all
+run-name: all (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload built cli binaries as artifacts
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runner-info:
+    uses: ./.github/workflows/runner-info.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+
+  rust:
+    uses: ./.github/workflows/rust.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  python:
+    uses: ./.github/workflows/python.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  npm:
+    uses: ./.github/workflows/npm.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  pnpm:
+    uses: ./.github/workflows/pnpm.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  bun:
+    uses: ./.github/workflows/bun.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  deno:
+    uses: ./.github/workflows/deno.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  go:
+    uses: ./.github/workflows/go.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  zig:
+    uses: ./.github/workflows/zig.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  java-gradle:
+    uses: ./.github/workflows/java-gradle.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  dotnet:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  swift:
+    uses: ./.github/workflows/swift.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  c-make:
+    uses: ./.github/workflows/c-make.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  c-cmake:
+    uses: ./.github/workflows/c-cmake.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  cpp-cmake:
+    uses: ./.github/workflows/cpp-cmake.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}
+
+  cpp-meson:
+    uses: ./.github/workflows/cpp-meson.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      artifacts: ${{ inputs.artifacts }}

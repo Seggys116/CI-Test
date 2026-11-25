@@ -1,0 +1,126 @@
+name: cpp-cmake
+run-name: cpp-cmake (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }} / ${{ matrix.generator }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/cpp-cmake
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+        generator:
+          - default
+          - Ninja
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "cmake ninja c++"
+
+      - uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: latest
+
+      - uses: seanmiddleditch/gha-setup-ninja@v6
+        if: matrix.generator == 'Ninja'
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows' && matrix.generator == 'Ninja'
+        with:
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: configure
+        env:
+          CIUTIL_GENERATOR: ${{ matrix.generator == 'Ninja' && 'Ninja' || '' }}
+        run: bash ../../scripts/cmake-ci.sh configure
+
+      - name: build
+        run: bash ../../scripts/cmake-ci.sh build
+
+      - name: test
+        run: bash ../../scripts/cmake-ci.sh test
+
+      - name: install and consume with find_package
+        run: bash ../../scripts/cmake-ci.sh install consume
+
+      - name: sanitizers (address, undefined)
+        if: runner.os != 'Windows'
+        env:
+          CIUTIL_GENERATOR: ${{ matrix.generator == 'Ninja' && 'Ninja' || '' }}
+        run: bash ../../scripts/cmake-ci.sh sanitize
+
+      - name: build and test with clang
+        if: runner.os == 'Linux'
+        env:
+          CC: clang
+          CXX: clang++
+          BUILD_DIR: build-clang
+          CIUTIL_GENERATOR: ${{ matrix.generator == 'Ninja' && 'Ninja' || '' }}
+        run: bash ../../scripts/cmake-ci.sh configure build test
+
+      - name: cli smoke
+        run: bash ../../scripts/cmake-ci.sh cli
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-cmake-cli-${{ matrix.target.runner }}-${{ matrix.generator }}
+          path: projects/cpp-cmake/build
+          if-no-files-found: error
+          retention-days: 3

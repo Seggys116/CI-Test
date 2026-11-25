@@ -1,0 +1,13 @@
+option(
+  'sanitize',
+  type: 'feature',
+  value: 'disabled',
+  description: 'build with sanitizers; enabled fails when the compiler lacks support, auto silently skips',
+)
+option(
+  'sanitizers',
+  type: 'combo',
+  choices: ['none', 'address', 'undefined', 'address,undefined'],
+  value: 'address,undefined',
+  description: 'sanitizers used when -Dsanitize is not disabled; the same list can be given to the built-in b_sanitize option',
+)

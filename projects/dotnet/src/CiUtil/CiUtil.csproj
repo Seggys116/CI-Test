@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CiUtil</RootNamespace>
+    <!-- not "CiUtil": ciutil.dll from the cli project would collide with it on case-insensitive file systems -->
+    <AssemblyName>CiUtil.Library</AssemblyName>
+  </PropertyGroup>
+
+</Project>

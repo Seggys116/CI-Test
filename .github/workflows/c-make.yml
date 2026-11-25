@@ -1,0 +1,119 @@
+name: c-make
+run-name: c-make (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/c-make
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "make cc"
+
+      - name: setup msys2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ runner.arch == 'ARM64' && 'CLANGARM64' || 'UCRT64' }}
+          path-type: inherit
+          install: make
+          pacboy: toolchain:p
+
+      - name: build (unix)
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: test (unix)
+        if: runner.os != 'Windows'
+        run: make test
+
+      - name: sanitizers (unix)
+        if: runner.os != 'Windows'
+        run: make asan
+
+      - name: cli smoke (unix)
+        if: runner.os != 'Windows'
+        run: bash ../../scripts/cli-smoke.sh build/ciutil
+
+      - name: build (msys2)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: make CC=${{ runner.arch == 'ARM64' && 'clang' || 'gcc' }}
+
+      - name: test (msys2)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: make test CC=${{ runner.arch == 'ARM64' && 'clang' || 'gcc' }}
+
+      - name: cli smoke (msys2)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash ../../scripts/cli-smoke.sh build/ciutil
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: c-make-cli-${{ matrix.target.runner }}
+          path: projects/c-make/build/ciutil*
+          if-no-files-found: error
+          retention-days: 3

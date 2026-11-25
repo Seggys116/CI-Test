@@ -1,0 +1,22 @@
+{
+  "tasks": {
+    "test": "deno test --allow-run --allow-read",
+    "lint": "deno lint",
+    "fmt-check": "deno fmt --check",
+    "check": "deno check src/main.ts",
+    "compile": "deno compile --output dist/ciutil src/main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.0"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "fmt": {
+    "exclude": ["dist/", "deno.lock"]
+  },
+  "lint": {
+    "exclude": ["dist/"]
+  }
+}

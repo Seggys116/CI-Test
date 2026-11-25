@@ -1,0 +1,11 @@
+.{
+    .name = .ciutil,
+    .version = "1.0.0",
+    .fingerprint = 0x54a2a4d41b2c3d4e,
+    .minimum_zig_version = "0.16.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

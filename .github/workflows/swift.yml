@@ -1,0 +1,97 @@
+name: swift
+run-name: swift (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: "windows-11-arm"
+
+  test:
+    name: ${{ matrix.target.runner }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/swift
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "swift"
+
+      - name: setup swift
+        if: runner.os != 'macOS'
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2"
+
+      - name: toolchain
+        run: swift --version
+
+      - name: build
+        run: swift build -c release
+
+      - name: test
+        run: swift test
+
+      - name: cli smoke
+        run: bash ../../scripts/cli-smoke.sh "$(swift build -c release --show-bin-path)/ciutil"
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-cli-${{ matrix.target.runner }}
+          path: projects/swift/.build/release/ciutil*
+          if-no-files-found: error
+          retention-days: 3

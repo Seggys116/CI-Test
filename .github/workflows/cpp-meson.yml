@@ -1,0 +1,112 @@
+name: cpp-meson
+run-name: cpp-meson (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/cpp-meson
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "meson ninja c++"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: install meson and ninja
+        run: python -m pip install --upgrade meson ninja
+
+      - name: configure
+        run: bash ../../scripts/meson-ci.sh setup
+
+      - name: build
+        run: bash ../../scripts/meson-ci.sh build
+
+      - name: test
+        run: bash ../../scripts/meson-ci.sh test
+
+      - name: sanitizers (address, undefined)
+        if: runner.os != 'Windows'
+        run: bash ../../scripts/meson-ci.sh sanitize
+
+      - name: build and test with clang
+        if: runner.os == 'Linux'
+        env:
+          CXX: clang++
+          BUILD_DIR: build-clang
+        run: bash ../../scripts/meson-ci.sh setup build test
+
+      - name: install
+        run: bash ../../scripts/meson-ci.sh install
+
+      - name: cli smoke
+        run: bash ../../scripts/meson-ci.sh cli
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-meson-cli-${{ matrix.target.runner }}
+          path: projects/cpp-meson/build/ciutil*
+          if-no-files-found: error
+          retention-days: 3

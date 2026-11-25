@@ -1,0 +1,78 @@
+name: _runners
+
+# reusable: turns the runner selection inputs into a job matrix.
+# labels verified 2026-11-25 against actions/runner-images and the GitHub docs;
+# every github-hosted label below is a free standard runner on public repositories.
+
+on:
+  workflow_call:
+    inputs:
+      runners:
+        description: all, github-hosted or unified
+        type: string
+        default: all
+      os:
+        description: all, linux, macos or windows
+        type: string
+        default: all
+      exclude:
+        description: comma separated runner labels to drop for this project
+        type: string
+        default: ""
+    outputs:
+      matrix:
+        description: json array of runner entries
+        value: ${{ jobs.select.outputs.matrix }}
+
+permissions: {}
+
+jobs:
+  select:
+    name: select runners
+    runs-on: ubuntu-slim
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - id: build
+        shell: bash
+        env:
+          RUNNERS: ${{ inputs.runners }}
+          OS: ${{ inputs.os }}
+          EXCLUDE: ${{ inputs.exclude }}
+        run: |
+          cat > all.json <<'JSON'
+          [
+            {"runner": "ubuntu-26.04",      "kind": "github-hosted", "os": "linux",   "arch": "x64"},
+            {"runner": "ubuntu-24.04",      "kind": "github-hosted", "os": "linux",   "arch": "x64"},
+            {"runner": "ubuntu-26.04-arm",  "kind": "github-hosted", "os": "linux",   "arch": "arm64"},
+            {"runner": "ubuntu-24.04-arm",  "kind": "github-hosted", "os": "linux",   "arch": "arm64"},
+            {"runner": "macos-26",          "kind": "github-hosted", "os": "macos",   "arch": "arm64"},
+            {"runner": "macos-15",          "kind": "github-hosted", "os": "macos",   "arch": "arm64"},
+            {"runner": "macos-26-intel",    "kind": "github-hosted", "os": "macos",   "arch": "x64"},
+            {"runner": "macos-15-intel",    "kind": "github-hosted", "os": "macos",   "arch": "x64"},
+            {"runner": "windows-2025",      "kind": "github-hosted", "os": "windows", "arch": "x64"},
+            {"runner": "windows-2022",      "kind": "github-hosted", "os": "windows", "arch": "x64"},
+            {"runner": "windows-11-arm",    "kind": "github-hosted", "os": "windows", "arch": "arm64"},
+            {"runner": "unified-linux-4",   "kind": "unified",       "os": "linux",   "arch": "self"},
+            {"runner": "unified-macos-4",   "kind": "unified",       "os": "macos",   "arch": "self"},
+            {"runner": "unified-windows-4", "kind": "unified",       "os": "windows", "arch": "self"}
+          ]
+          JSON
+          matrix=$(jq -c \
+            --arg runners "$RUNNERS" \
+            --arg os "$OS" \
+            --arg exclude "$EXCLUDE" '
+              ($exclude | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $drop
+              | map(select(
+                  ($runners == "all" or .kind == $runners)
+                  and ($os == "all" or .os == $os)
+                  and ((.runner as $r | $drop | index($r)) | not)
+                ))
+            ' all.json)
+          if [ "$(jq 'length' <<<"$matrix")" -eq 0 ]; then
+            echo "no runners match runners=$RUNNERS os=$OS exclude=$EXCLUDE" >&2
+            exit 1
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "### selected runners" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.[] | "- `\(.runner)` (\(.kind), \(.os), \(.arch))"' <<<"$matrix" >> "$GITHUB_STEP_SUMMARY"

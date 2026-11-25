@@ -1,0 +1,54 @@
+.DS_Store
+
+# rust
+projects/rust/target/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+projects/python/dist/
+*.egg-info/
+
+# node, pnpm, bun, deno
+node_modules/
+projects/npm/dist/
+projects/pnpm/packages/*/dist/
+projects/pnpm/**/*.tsbuildinfo
+projects/bun/dist/
+projects/deno/dist/
+
+# go
+projects/go/bin/
+
+# zig
+.zig-cache/
+zig-out/
+
+# swift
+.build/
+.swiftpm/
+
+# java, gradle
+.gradle/
+projects/java-gradle/build/
+.kotlin/
+
+# dotnet
+bin/
+obj/
+TestResults/
+
+# c, c++ (make, cmake, meson)
+projects/c-make/build/
+projects/c-cmake/build*/
+projects/cpp-cmake/build*/
+projects/cpp-meson/build*/
+*.o
+*.obj
+*.a
+*.lib
+*.exe

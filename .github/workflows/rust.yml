@@ -1,0 +1,117 @@
+name: rust
+run-name: rust (runners=${{ inputs.runners }}, os=${{ inputs.os }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: runner set to use
+        type: choice
+        options:
+          - all
+          - github-hosted
+          - unified
+        default: all
+      os:
+        description: restrict to one operating system
+        type: choice
+        options:
+          - all
+          - linux
+          - macos
+          - windows
+        default: all
+      artifacts:
+        description: upload the built cli as an artifact
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        default: all
+      os:
+        type: string
+        default: all
+      artifacts:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  runners:
+    uses: ./.github/workflows/_runners.yml
+    with:
+      runners: ${{ inputs.runners }}
+      os: ${{ inputs.os }}
+      exclude: ""
+
+  test:
+    name: ${{ matrix.target.runner }} / rust ${{ matrix.toolchain }}
+    needs: runners
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: projects/rust
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.runners.outputs.matrix) }}
+        toolchain:
+          - stable
+          - "1.85"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/runner-info
+        with:
+          label: ${{ matrix.target.runner }}
+          tools: "rustc cargo"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/rust
+          key: ${{ matrix.target.runner }}-${{ matrix.toolchain }}
+
+      - name: format
+        run: cargo fmt --check
+
+      - name: clippy
+        if: matrix.toolchain == 'stable'
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: build
+        run: cargo build --locked --release
+
+      - name: test (debug)
+        run: cargo test --locked
+
+      - name: test (release)
+        run: cargo test --locked --release
+
+      - name: docs
+        if: matrix.toolchain == 'stable'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --no-deps
+
+      - name: cli smoke
+        run: bash ../../scripts/cli-smoke.sh target/release/ciutil
+
+      - name: upload cli
+        if: ${{ inputs.artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-cli-${{ matrix.target.runner }}-${{ matrix.toolchain }}
+          path: projects/rust/target/release/ciutil*
+          if-no-files-found: error
+          retention-days: 3
